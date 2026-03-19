@@ -1,0 +1,54 @@
+{
+  "experiment": "sepsis_eda_baseline",
+  "timestamp": "2026-03-19T20:30:46.006904",
+  "seed": 42,
+  "dataset": {
+    "primary_n": 110204,
+    "study_n": 19051,
+    "validation_n": 137,
+    "features": [
+      "age",
+      "sex",
+      "episode"
+    ],
+    "target": "outcome",
+    "primary_alive_pct": 92.6455,
+    "primary_dead_pct": 7.3545,
+    "imbalance_ratio": 12.597
+  },
+  "baseline_models": [
+    {
+      "Model": "Majority class (most_frequent)",
+      "Accuracy": 0.926454575127314,
+      "AUROC": 0.5,
+      "PR-AUC": 0.926454575127314,
+      "F1": 0.9618234315912766
+    },
+    {
+      "Model": "Stratified random",
+      "Accuracy": 0.8624550954412544,
+      "AUROC": 0.5018643798384673,
+      "PR-AUC": 0.9267090383279157,
+      "F1": 0.925684428172169
+    },
+    {
+      "Model": "Uniform random",
+      "Accuracy": 0.4994555526818482,
+      "AUROC": 0.5,
+      "PR-AUC": 0.926454575127314,
+      "F1": 0.649270715600705
+    }
+  ],
+  "cv_setup": {
+    "strategy": "StratifiedKFold",
+    "n_splits": 5,
+    "shuffle": true,
+    "random_state": 42
+  },
+  "notes": [
+    "Bayes error bound to be derived in Week 1 – TV2 (Stats Lead)",
+    "SMOTE ablation scheduled for Week 2",
+    "Calibration analysis scheduled for Week 2",
+    "Fairness audit scheduled for Week 2"
+  ]
+}
