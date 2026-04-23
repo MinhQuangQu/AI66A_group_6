@@ -1,29 +1,29 @@
-# 📊 Chiến Lược Xử Lý Dữ Liệu & Huấn Luyện Mô Hình
-## Dự án: Sepsis Survival Minimal Clinical Records
+# Data Processing & Model Training Strategy
+## Project: Sepsis Survival Minimal Clinical Records
 
 > [!IMPORTANT]
-> Bộ dữ liệu này có **đặc trưng cốt lõi**: chỉ 3 features, tương quan thấp, mất cân bằng lớp nghiêm trọng (~14.42% tử vong). Điều này tạo ra một **Feature Bottleneck** — nghĩa là giới hạn của dự đoán không nằm ở mô hình, mà nằm ở chính dữ liệu.
+> This dataset has a **core characteristic**: only 3 features, low correlation, severe class imbalance (~14.42% mortality). This creates a **Feature Bottleneck** — meaning the prediction limit lies in the data itself, not in the model.
 
 ---
 
-## 1. Phân Tích Đặc Điểm Dữ Liệu
+## 1. Data Characteristics Analysis
 
-### 1.1. Tóm tắt Dataset
+### 1.1. Dataset Summary
 
-| Thuộc tính | Giá trị |
+| Attribute | Value |
 |---|---|
-| **Nguồn** | UCI ML Repository (ID: 827) |
-| **Tổng mẫu (Primary Cohort)** | 110,204 admissions |
+| **Source** | UCI ML Repository (ID: 827) |
+| **Total Samples (Primary Cohort)** | 110,204 admissions |
 | **Study Cohort** | 19,051 admissions |
 | **Validation Cohort** | 137 patients (Korea) |
-| **Số features** | 3 (`age`, `sex`, `episode_number`) |
+| **Number of Features** | 3 (`age`, `sex`, `episode_number`) |
 | **Target** | `hospital_outcome_1alive_0dead` (Binary) |
-| **Tỷ lệ sống** | ~92.65% |
-| **Tỷ lệ tử vong (minority)** | ~7.35% |
+| **Survival Rate** | ~92.65% |
+| **Mortality Rate (minority)** | ~7.35% |
 | **Imbalance Ratio** | ~12.6:1 |
-| **Missing values** | Không có |
+| **Missing Values** | None |
 
-### 1.2. Các Thách Thức Hệ Thống
+### 1.2. Systemic Challenges
 
 ```mermaid
 graph LR
@@ -33,84 +33,84 @@ graph LR
     B --> E["Feature Bottleneck"]
     C --> E
     D --> E
-    E --> F["Mô hình không thể vượt<br>~92.6% Accuracy threshold"]
+    E --> F["Model cannot exceed<br>~92.6% Accuracy threshold"]
     
     G["Class Imbalance 12.6:1"] --> H["Accuracy Illusion"]
-    H --> I["Dummy model đạt 92.65%<br>nhưng MCC = 0"]
+    H --> I["Dummy model reaches 92.65%<br>but MCC = 0"]
 ```
 
 > [!WARNING]
-> **Kết luận từ Week 1 & 2**: Bayes Error Bound ≈ 6.57%, tiệm cận Baseline Mortality Rate (7.35%). Điều này chứng minh rằng **không mô hình nào** (dù phức tạp đến đâu) có thể thực sự dự đoán tốt hơn "mọi người đều sống" chỉ với 3 features này. Mọi nỗ lực phải tập trung vào **quality of prediction** (calibration, uncertainty) thay vì cạnh tranh Accuracy.
+> **Conclusion from Week 1 & 2**: Bayes Error Bound is approximately 6.57%, asymptotically close to the Baseline Mortality Rate (7.35%). This proves that **no model** (regardless of complexity) can truly predict better than "everyone survives" using only these 3 features. All efforts must focus on **quality of prediction** (calibration, uncertainty) rather than competing on Accuracy.
 
 ---
 
-## 2. Chiến Lược Xử Lý Dữ Liệu
+## 2. Data Processing Strategy
 
-### 2.1. Feature Engineering — Mở Rộng Không Gian Đặc Trưng
+### 2.1. Feature Engineering — Expanding the Feature Space
 
-Với chỉ 3 features, **feature engineering là phương pháp quan trọng nhất** để cải thiện. Các kỹ thuật đề xuất:
+With only 3 features, **feature engineering is the most critical method** for improvement. Proposed techniques:
 
-#### a) Polynomial Features (Đặc trưng đa thức)
+#### a) Polynomial Features
 ```
-age² — Capture non-linear age effects (tử vong tăng phi tuyến theo tuổi)
-episode_number² — Recurrent sepsis effects
-```
-
-#### b) Interaction Terms (Tương tác giữa các biến)
-```
-age × sex — Hiệu ứng tuổi khác nhau giữa nam/nữ
-age × episode_number — Tuổi cao + nhiều đợt sepsis = rủi ro tăng
-sex × episode_number — Giới tính × tần suất bệnh
-age × sex × episode_number — Three-way interaction
+age^2 — Capture non-linear age effects (mortality increases non-linearly with age)
+episode_number^2 — Recurrent sepsis effects
 ```
 
-#### c) Domain-Driven Binning (Phân nhóm lâm sàng)
+#### b) Interaction Terms
+```
+age x sex — Age effects differ between male/female
+age x episode_number — Older age + multiple sepsis episodes = increased risk
+sex x episode_number — Gender x disease frequency
+age x sex x episode_number — Three-way interaction
+```
+
+#### c) Domain-Driven Binning
 ```
 age_bin: [0-18, 19-40, 41-60, 61-80, 81+]
-→ One-hot encode các bins
-→ Mortality rate encoding: thay age_bin bằng tỷ lệ tử vong trung bình của nhóm
+-> One-hot encode the bins
+-> Mortality rate encoding: replace age_bin with the average mortality rate of the group
 ```
 
 #### d) Target Encoding (Subgroup Mortality Rate)
 ```
-Tạo biến: P(Dead | age_bin, sex) = Tỷ lệ tử vong theo nhóm tuổi-giới
-→ Sử dụng K-Fold target encoding để tránh data leakage
+Create variable: P(Dead | age_bin, sex) = Mortality rate by age-gender subgroup
+-> Use K-Fold target encoding to avoid data leakage
 ```
 
 > [!TIP]
-> Đây là kỹ thuật **mạnh nhất** cho dataset này. Paper của Chicco & Jurman (2020) cho thấy `age` là trụ cột dự đoán (Cohen's d = 0.66). Bằng cách tạo interaction terms và target encoding, ta biến 3D space thành 8-12D space, giúp mô hình tìm ranh giới phân loại tốt hơn.
+> This is the **most powerful technique** for this dataset. Chicco & Jurman (2020) showed that `age` is the prediction backbone (Cohen's d = 0.66). By creating interaction terms and target encoding, we transform the 3D space into an 8-12D space, helping the model find better classification boundaries.
 
-### 2.2. Xử Lý Mất Cân Bằng Lớp
+### 2.2. Handling Class Imbalance
 
 > [!CAUTION]
-> **KHÔNG nên dùng SMOTE/oversampling!** Paper của Carchiolo & Malgeri (2024) đã chứng minh: SMOTE trên dataset ít features tạo ra "Accuracy Illusion" — metric tăng cao nhưng thực tế mô hình học noise, không phải signal.
+> **Do NOT use SMOTE/oversampling!** Carchiolo & Malgeri (2024) demonstrated that SMOTE on low-feature datasets creates an "Accuracy Illusion" — metrics appear high but the model actually learns noise, not signal.
 
-#### Phương pháp đề xuất:
+#### Proposed Methods:
 
-| Phương pháp | Mô tả | Ưu tiên |
+| Method | Description | Priority |
 |---|---|---|
-| **Cost-Sensitive Learning** | `class_weight='balanced'` trong sklearn | ⭐ Cao nhất |
-| **Asymmetric Loss** | Focal Loss hoặc custom loss: FN penalty > FP penalty | ⭐ Cao |
-| **Threshold Tuning** | Điều chỉnh decision threshold thay vì dùng 0.5 | ⭐ Cao |
-| **Stratified Sampling** | Đảm bảo train/val/test giữ tỷ lệ lớp | ⭐ Bắt buộc |
-| **Under-sampling** | Dùng ensemble under-sampling (BalancedBaggingClassifier) | Trung bình |
+| **Cost-Sensitive Learning** | `class_weight='balanced'` in sklearn | Highest |
+| **Asymmetric Loss** | Focal Loss or custom loss: FN penalty > FP penalty | High |
+| **Threshold Tuning** | Adjust decision threshold instead of using 0.5 | High |
+| **Stratified Sampling** | Ensure train/val/test maintain class ratios | Mandatory |
+| **Under-sampling** | Use ensemble under-sampling (BalancedBaggingClassifier) | Medium |
 
-### 2.3. Cải Cách Metric — Bỏ Accuracy, Dùng Metric Phù Hợp
+### 2.3. Metric Reform — Discard Accuracy, Use Appropriate Metrics
 
 ```mermaid
 graph TD
-    A["Metric Selection"] --> B["❌ Accuracy<br>Misleading vì imbalance"]
-    A --> C["✅ MCC<br>Matthews Correlation Coefficient"]
-    A --> D["✅ PR-AUC<br>trên lớp Dead (minority)"]
-    A --> E["✅ Brier Score<br>Đo calibration quality"]
-    A --> F["✅ ECE<br>Expected Calibration Error"]
-    A --> G["✅ ROC-AUC<br>Discrimination power"]
+    A["Metric Selection"] --> B["Accuracy<br>Misleading due to imbalance"]
+    A --> C["MCC<br>Matthews Correlation Coefficient"]
+    A --> D["PR-AUC<br>on Dead class (minority)"]
+    A --> E["Brier Score<br>Measures calibration quality"]
+    A --> F["ECE<br>Expected Calibration Error"]
+    A --> G["ROC-AUC<br>Discrimination power"]
 ```
 
 ### 2.4. Cross-Validation Strategy
 
 ```python
-# StratifiedKFold (BẮT BUỘC): giữ tỷ lệ lớp trong mỗi fold
+# StratifiedKFold (MANDATORY): maintains class ratios in each fold
 from sklearn.model_selection import RepeatedStratifiedKFold
 
 cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=42)
@@ -118,37 +118,37 @@ cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=42)
 
 ---
 
-## 3. Chiến Lược Huấn Luyện Mô Hình
+## 3. Model Training Strategy
 
-### Tier 1: Calibrated Baselines (Tuần tiếp theo)
+### Tier 1: Calibrated Baselines (Next Week)
 
-| Mô hình | Config | Mục tiêu |
+| Model | Config | Objective |
 |---|---|---|
-| **Logistic Regression** | `class_weight='balanced'` + polynomial features | Baseline có calibration tốt nhất |
-| **CalibratedClassifierCV** | Logistic Regression + Platt Scaling hoặc Isotonic Regression | Sửa miscalibration |
+| **Logistic Regression** | `class_weight='balanced'` + polynomial features | Baseline with best calibration |
+| **CalibratedClassifierCV** | Logistic Regression + Platt Scaling or Isotonic Regression | Fix miscalibration |
 
 > [!NOTE]
-> Week 2 đã phát hiện: Logistic Regression với `class_weight='balanced'` tạo Brier Score = 0.2246 (tệ hơn Dummy 0.0735). Đây là hiện tượng **over-confidence** cần hậu hiệu chuẩn.
+> Week 2 discovered: Logistic Regression with `class_weight='balanced'` produces Brier Score = 0.2246 (worse than Dummy at 0.0735). This is an **over-confidence** phenomenon requiring post-hoc calibration.
 
-### Tier 2: Tree-Based Ensembles (Phù hợp với tabular data)
+### Tier 2: Tree-Based Ensembles (Suitable for Tabular Data)
 
-| Mô hình | Config | Ghi chú |
+| Model | Config | Notes |
 |---|---|---|
-| **XGBoost** | `scale_pos_weight = imbalance_ratio`, `eval_metric='aucpr'` | Mạnh nhất cho tabular |
-| **LightGBM** | `is_unbalance=True` hoặc custom `scale_pos_weight` | Nhanh, hiệu quả |
+| **XGBoost** | `scale_pos_weight = imbalance_ratio`, `eval_metric='aucpr'` | Strongest for tabular |
+| **LightGBM** | `is_unbalance=True` or custom `scale_pos_weight` | Fast, efficient |
 | **Random Forest** | `class_weight='balanced_subsample'` | Interpretable |
-| **BalancedBaggingClassifier** | Ensemble under-sampling | Xử lý imbalance tự nhiên |
+| **BalancedBaggingClassifier** | Ensemble under-sampling | Handles imbalance naturally |
 
-### Tier 3: Uncertainty Quantification (Mục tiêu chính)
+### Tier 3: Uncertainty Quantification (Primary Goal)
 
-| Phương pháp | Mô tả |
+| Method | Description |
 |---|---|
-| **Conformal Prediction** | Tạo prediction sets với coverage guarantee (VD: 90% confidence) |
-| **Calibration Curves** | Reliability Diagram để đánh giá predicted probability vs actual |
-| **Monte Carlo Dropout** | (Nếu dùng Neural Net) Ước lượng uncertainty |
-| **Platt Scaling / Isotonic Regression** | Post-hoc calibration cho bất kỳ model nào |
+| **Conformal Prediction** | Generate prediction sets with coverage guarantee (e.g., 90% confidence) |
+| **Calibration Curves** | Reliability Diagram to evaluate predicted probability vs actual |
+| **Monte Carlo Dropout** | (If using Neural Net) Estimate uncertainty |
+| **Platt Scaling / Isotonic Regression** | Post-hoc calibration for any model |
 
-### Pipeline Đề Xuất
+### Proposed Pipeline
 
 ```mermaid
 graph TD
@@ -163,66 +163,66 @@ graph TD
 
 ---
 
-## 4. Các Bài Báo Liên Quan & Tóm Tắt Phương Pháp
+## 4. Related Papers & Method Summaries
 
-### Paper 1: Chicco & Jurman (2020) — Bài báo gốc
-- **Tiêu đề:** *Survival prediction of patients with sepsis from age, sex, and septic episode number alone*
+### Paper 1: Chicco & Jurman (2020) — Original Paper
+- **Title:** *Survival prediction of patients with sepsis from age, sex, and septic episode number alone*
 - **Link:** [Nature Scientific Reports 10, 17156](https://doi.org/10.1038/s41598-020-73558-3)
-- **Tóm tắt phương pháp:**
-  - Sử dụng 10+ classifiers (Random Forest, XGBoost, SVM, etc.) trên 3 features
-  - Cross-validation 5-fold stratified
-  - **Phát hiện chính:** Mô hình sụp đổ khi cross-cohort validation (Norway → Korea), ROC-AUC giảm từ ~0.7 xuống 0.568
-  - **Hạn chế:** Đánh giá bằng Accuracy (misleading), không xử lý calibration
+- **Method Summary:**
+  - Used 10+ classifiers (Random Forest, XGBoost, SVM, etc.) on 3 features
+  - 5-fold stratified cross-validation
+  - **Key Finding:** Models collapsed during cross-cohort validation (Norway to Korea), ROC-AUC dropped from ~0.7 to 0.568
+  - **Limitation:** Evaluated using Accuracy (misleading), did not address calibration
 
 ### Paper 2: Carchiolo & Malgeri (2024) — Dataset Balancing
-- **Tiêu đề:** *Dataset Balancing in Disease Prediction*
+- **Title:** *Dataset Balancing in Disease Prediction*
 - **Link:** [DATA 2024 Conference, SciTePress](https://doi.org/10.5220/0012755700003756)
-- **Tóm tắt phương pháp:**
-  - Đánh giá SMOTE + 10 classifiers trên Sepsis Minimal dataset
-  - Claim Accuracy 0.982 sau SMOTE
-  - **Vấn đề nghiêm trọng:** Rơi vào "Accuracy Illusion" — SMOTE trên dataset ít features chỉ memorize majority class patterns
-  - **Bài học:** Không nên đánh giá bằng Accuracy khi imbalanced > 10:1
+- **Method Summary:**
+  - Evaluated SMOTE + 10 classifiers on the Sepsis Minimal dataset
+  - Claimed Accuracy of 0.982 after SMOTE
+  - **Serious Issue:** Falls into the "Accuracy Illusion" — SMOTE on low-feature datasets only memorizes majority class patterns
+  - **Lesson:** Should not evaluate using Accuracy when imbalance ratio exceeds 10:1
 
 ### Paper 3: He & Garcia (2009) — Class Imbalance Survey
-- **Tiêu đề:** *Learning from Imbalanced Data*
+- **Title:** *Learning from Imbalanced Data*
 - **Link:** [IEEE Transactions on Knowledge and Data Engineering, 21(9)](https://doi.org/10.1109/TKDE.2008.239)
-- **Tóm tắt phương pháp:**
-  - Survey toàn diện nhất về class imbalance
-  - So sánh: Oversampling (SMOTE) vs Under-sampling vs Cost-sensitive vs Ensemble
-  - **Khuyến nghị chính:** Cost-sensitive learning vượt trội oversampling khi features ít và overlap lớn
-  - Đề xuất metric: G-mean, F-measure trên minority class
+- **Method Summary:**
+  - The most comprehensive survey on class imbalance
+  - Comparison: Oversampling (SMOTE) vs Under-sampling vs Cost-sensitive vs Ensemble
+  - **Key Recommendation:** Cost-sensitive learning outperforms oversampling when features are few and class overlap is high
+  - Proposed metrics: G-mean, F-measure on minority class
 
 ### Paper 4: Niculescu-Mizil & Caruana (2005) — Calibration
-- **Tiêu đề:** *Predicting Good Probabilities with Supervised Learning*
+- **Title:** *Predicting Good Probabilities with Supervised Learning*
 - **Link:** [ICML 2005](https://doi.org/10.1145/1102351.1102430)
-- **Tóm tắt phương pháp:**
-  - So sánh calibration quality của 10 classifiers
-  - **Phát hiện:** Boosted trees và SVM "over-confident", cần Platt Scaling
-  - Logistic Regression có calibration tốt nhất ban đầu, nhưng `class_weight` làm hỏng
-  - **Đề xuất:** Luôn dùng CalibratedClassifierCV cho medical predictions
+- **Method Summary:**
+  - Compared calibration quality of 10 classifiers
+  - **Finding:** Boosted trees and SVM are "over-confident", require Platt Scaling
+  - Logistic Regression has the best initial calibration, but `class_weight` degrades it
+  - **Recommendation:** Always use CalibratedClassifierCV for medical predictions
 
 ### Paper 5: Vovk, Gammerman & Shafer (2005) — Conformal Prediction
-- **Tiêu đề:** *Algorithmic Learning in a Random World*
+- **Title:** *Algorithmic Learning in a Random World*
 - **Link:** [Springer](https://doi.org/10.1007/b106715)
-- **Tóm tắt phương pháp:**
-  - Framework lý thuyết cho Conformal Prediction
-  - Tạo prediction sets với **coverage guarantee** (VD: 95% của dự đoán sẽ chứa true label)
-  - **Ứng dụng cho Sepsis:** Thay vì predict "sống/chết", output là {"sống"}, {"chết"}, hoặc {"sống, chết"} (uncertain)
-  - Trường hợp uncertain → flag cho bác sĩ review
+- **Method Summary:**
+  - Theoretical framework for Conformal Prediction
+  - Generates prediction sets with **coverage guarantee** (e.g., 95% of predictions will contain the true label)
+  - **Application to Sepsis:** Instead of predicting "alive/dead", output is {"alive"}, {"dead"}, or {"alive, dead"} (uncertain)
+  - Uncertain cases are flagged for physician review
 
 ### Paper 6: Cover & Hart (1967) — Bayes Error Bound
-- **Tiêu đề:** *Nearest Neighbor Pattern Classification*
+- **Title:** *Nearest Neighbor Pattern Classification*
 - **Link:** [IEEE Trans. Information Theory, 13(1)](https://doi.org/10.1109/TIT.1967.1053964)
-- **Tóm tắt phương pháp:**
-  - Chứng minh: Lỗi 1-NN ≤ 2R*(1 - R*), với R* là Bayes Error
-  - **Ứng dụng trong project:** Dùng 1-NN error (12.27%) để ước lượng Bayes Error Bound (~6.57%)
-  - Kết quả: Feature Bottleneck nghiêm trọng — giới hạn lý thuyết gần bằng baseline mortality rate
+- **Method Summary:**
+  - Proved: 1-NN error <= 2R*(1 - R*), where R* is the Bayes Error
+  - **Application in this project:** Used 1-NN error (12.27%) to estimate Bayes Error Bound (~6.57%)
+  - Result: Severe Feature Bottleneck — theoretical limit is nearly equal to the baseline mortality rate
 
 ---
 
-## 5. Kế Hoạch Hành Động Cụ Thể
+## 5. Concrete Action Plan
 
-### Bước 1: Feature Engineering Pipeline
+### Step 1: Feature Engineering Pipeline
 ```python
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from sklearn.pipeline import Pipeline
@@ -230,13 +230,13 @@ from category_encoders import TargetEncoder
 
 # 1. Polynomial + Interaction features (degree=2)
 poly = PolynomialFeatures(degree=2, interaction_only=False, include_bias=False)
-# Từ 3 features → 9 features: age, sex, ep, age², age×sex, age×ep, sex², sex×ep, ep²
+# From 3 features -> 9 features: age, sex, ep, age^2, age*sex, age*ep, sex^2, sex*ep, ep^2
 
-# 2. Target Encoding cho demographic subgroups
-# Cẩn thận: dùng K-Fold CV encoding để tránh leakage
+# 2. Target Encoding for demographic subgroups
+# Caution: use K-Fold CV encoding to avoid leakage
 ```
 
-### Bước 2: Model Comparison Pipeline
+### Step 2: Model Comparison Pipeline
 ```python
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -250,38 +250,38 @@ models = {
     'XGB_weighted': XGBClassifier(scale_pos_weight=12.6, eval_metric='aucpr'),
 }
 
-# Wrap mỗi model với CalibratedClassifierCV
+# Wrap each model with CalibratedClassifierCV
 for name, model in models.items():
     calibrated = CalibratedClassifierCV(model, method='isotonic', cv=5)
 ```
 
-### Bước 3: Evaluation Framework
+### Step 3: Evaluation Framework
 ```python
-# Metric chính:
+# Primary metrics:
 # 1. MCC (Matthews Correlation Coefficient)
-# 2. PR-AUC trên class Dead
+# 2. PR-AUC on Dead class
 # 3. Brier Score
 # 4. ECE (Expected Calibration Error)
 # 5. Reliability Diagram
 ```
 
-### Bước 4: Cross-Cohort Validation
+### Step 4: Cross-Cohort Validation
 ```python
-# Train trên Primary Cohort → Test trên Study Cohort & Validation Cohort
-# Mục tiêu: kiểm tra distribution shift (vấn đề chính của Chicco & Jurman 2020)
+# Train on Primary Cohort -> Test on Study Cohort & Validation Cohort
+# Objective: check for distribution shift (main issue from Chicco & Jurman 2020)
 ```
 
 ---
 
-## 6. Tổng Kết
+## 6. Summary
 
 > [!IMPORTANT]
-> **Chiến lược cốt lõi:** Với dataset 3 features, tương quan thấp, imbalance nặng:
-> 1. **Feature Engineering** là ưu tiên #1 (polynomial, interaction, target encoding)
-> 2. **Cost-Sensitive Learning** thay vì SMOTE
-> 3. **Đánh giá bằng MCC, PR-AUC, Brier Score** — KHÔNG dùng Accuracy
-> 4. **Post-hoc Calibration** (Platt/Isotonic) cho mọi model
-> 5. **Conformal Prediction** cho uncertainty quantification
-> 6. **Cross-cohort validation** để kiểm tra generalization
+> **Core Strategy:** For a dataset with 3 features, low correlation, and heavy imbalance:
+> 1. **Feature Engineering** is priority #1 (polynomial, interaction, target encoding)
+> 2. **Cost-Sensitive Learning** instead of SMOTE
+> 3. **Evaluate using MCC, PR-AUC, Brier Score** — do NOT use Accuracy
+> 4. **Post-hoc Calibration** (Platt/Isotonic) for all models
+> 5. **Conformal Prediction** for uncertainty quantification
+> 6. **Cross-cohort validation** to verify generalization
 >
-> Mục tiêu không phải là "đạt Accuracy cao", mà là **biết khi nào mô hình không chắc chắn** — để flag cho bác sĩ review.
+> The goal is not to "achieve high Accuracy", but to **know when the model is uncertain** — so uncertain cases can be flagged for physician review.
