@@ -1,0 +1,13 @@
+{
+  "primary_n": 110204,
+  "study_n": 19051,
+  "validation_n": 137,
+  "primary_mortality": 0.07354542484846285,
+  "study_mortality": 0.1892814025510472,
+  "validation_mortality": 0.17518248175182483,
+  "class_ratio": 12.597038864898211,
+  "n_splits": 2,
+  "n_repeats": 1,
+  "quick": true,
+  "xgboost_available": true
+}
