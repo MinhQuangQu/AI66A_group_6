@@ -1,0 +1,9 @@
+.venv/
+.vscode/
+__pycache__/
+*.pyc
+*.log
+
+# Local analysis scripts and generated figure exports
+generate_figures.py
+publication_figures/
